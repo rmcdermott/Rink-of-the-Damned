@@ -105,6 +105,27 @@ button{touch-action:manipulation}
 .card p{font-size:12.5px;color:#c9c0ae;line-height:1.5;margin:6px 0}
 .card .bars{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;font-size:11px;color:#9a8f7a;margin:6px 0}
 .card .bar{height:7px;margin-top:4px;background:#2a2218;border-radius:4px;overflow:hidden}.card .bar i{display:block;height:100%;background:linear-gradient(90deg,#a07a3e,#ffd24a)}
+.cards::-webkit-scrollbar{display:none}
+.swipehint{display:none;color:#a88f5e;font-size:12px;margin:-6px 0 10px;letter-spacing:1px}
+@media (max-width:900px){
+  .cbox{padding:12px 0}
+  .cards{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x;padding:6px calc(50vw - min(130px,39vw)) 10px;gap:12px}
+  .card{flex:0 0 min(260px,78vw);scroll-snap-align:center;padding:10px 12px}
+  .card:hover{transform:none}
+  .card p{font-size:12px;margin:4px 0}.card ul{font-size:11.5px;line-height:1.45}
+  .swipehint{display:block}
+  .ctitle{margin:2px 0 10px}
+}
+@media (max-width:900px) and (orientation:landscape){
+  .cards{padding:4px 12px 8px;justify-content:safe center}
+  .card{flex:0 0 min(250px,31vw)}
+  .card canvas{width:72px;height:72px}.card h3{font-size:18px}.card p{display:none}.ctitle{font-size:24px;margin:0 0 8px}.card .bars{margin:4px 0}
+  .swipehint{display:none}
+  .cbox .btns{margin:6px 0}
+  .card .bars,.cbox>div:first-child{display:none}
+  .card canvas{width:60px;height:60px}.card .like{font-size:11px;margin-bottom:2px}.card ul{font-size:11px;line-height:1.3;margin-top:2px}
+  .cbox{padding:6px 0}.cbox .btns button{padding:8px 18px;font-size:15px}
+}
 .card ul{margin:6px 0 0;padding-left:16px;font-size:12px;color:#b9ae98;line-height:1.55}.card ul b{color:#f0e2bd}
 .vend{left:18px;top:70px;width:min(430px,92vw);max-height:calc(100% - 90px);overflow:auto;touch-action:pan-y}
 .srow{gap:10px}.srow .si{display:flex;gap:10px;align-items:center;min-width:0;cursor:pointer}.srow img{width:44px;height:44px;border-radius:4px;border:1px solid #3d3324;flex:none}
@@ -254,6 +275,7 @@ button{touch-action:manipulation}
   <div class="cbox">
     <div style="font-family:Cinzel,serif;color:#a88f5e;letter-spacing:5px;font-size:12px">NEW SEASON</div>
     <h2 class="ctitle">Choose Your Position</h2>
+    <div class="swipehint">◀ Swipe to see all three positions ▶</div>
     <div class="cards" id="cards"></div>
     <div class="btns"><button id="bBack">Back</button><button id="bStart" disabled>Drop the Puck</button></div>
   </div>
@@ -1769,7 +1791,8 @@ function buyPot(code){const k=code[0]==='w'?'water':'cold',nm=k==='water'?'Water
 function updPotPrices(){document.querySelectorAll('[data-buy=w6],[data-hut=w6],[data-buy=c6],[data-hut=c6]').forEach(b=>{const code=b.dataset.buy||b.dataset.hut,c=potPrice(code);b.textContent=c?c+'g':'Full';b.disabled=!c})}
 function updShop(){updPotPrices();updVendors();$('shopGold').textContent=P.gold.toLocaleString();$('shopPots').textContent=`💧 ${P.water}  ·  🍺 ${P.cold}`;$('bagPrice').textContent=bagPrice()+'g'}
 function openPanel(id){if(id==='inv'){renderInv()}if(id==='shop')updShop();if(['gear','sharp','hut'].includes(id))updVendors();$(id).classList.remove('hidden');if(['shop','gear','sharp'].includes(id)&&W>760){renderInv();$('inv').classList.remove('hidden')}}
-function closePanel(id){$(id).classList.add('hidden');hideTip()}
+let pendingBanner=false;
+function closePanel(id){$(id).classList.add('hidden');hideTip();if(id==='help'&&pendingBanner){pendingBanner=false;banner('Frostbite Flats','Tuesday · 11:47 PM · Last call was hours ago')}}
 function togglePanel(id){if($(id).classList.contains('hidden'))openPanel(id);else closePanel(id)}
 function setupUI(){
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closePanel(b.dataset.close));
@@ -1931,8 +1954,8 @@ function newGame(pc='defense'){P=newPlayer();P.pc=pc;SK=buildSK(pc);refreshTouch
   P.eq.skates={id:uid(),slot:'skates',rar:0,ilvl:1,aff:{},base:'Rental Skates',name:'Rental Skates',armor:4,var:0};
   recalc();P.hp=P.maxHp;P.buzz=P.maxBuzz;startPlay(true)}
 function startPlay(isNew){if(OW.castle){OW.castle.open=false;OW.castle.lift=0;SOL[11]=1}mode='play';$('touch').classList.toggle('hidden',!touchMode);P.hidden=false;$('title').classList.add('hidden');OW.enemies=OW.enemies.filter(e=>OW.towns.every(t=>Math.hypot(e.x-t.x,e.y-t.y)>15*TS));
-  setMap(OW,OW.town.x,OW.town.y+40);banner('Frostbite Flats','Tuesday · 11:47 PM · Last call was hours ago');
-  if(isNew){setTimeout(()=>openPanel('help'),2600);save()}}
+  setMap(OW,OW.town.x,OW.town.y+40);
+  if(isNew){pendingBanner=true;openPanel('help');save()}else banner('Frostbite Flats','Tuesday · 11:47 PM · Last call was hours ago')}
 
 
 
