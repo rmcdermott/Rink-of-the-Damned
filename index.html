@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" id="vpmeta" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Beer League: Rink of the Damned</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -72,8 +72,9 @@ button:disabled{opacity:.4;cursor:default;filter:none}
 #dead h1{font-family:'Cinzel Decorative',serif;color:#d33;font-size:clamp(40px,8vw,80px);margin:0;text-shadow:0 0 30px rgba(255,0,0,.4),0 4px 8px #000}
 #dead p{color:#bbb;font-size:15px}
 #bar{left:50%;top:50%;transform:translate(-50%,-50%);width:min(400px,92vw)}
-html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+html,body{touch-action:manipulation;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 canvas#c,#touch,#touch *{touch-action:none}
+body.pagezoom canvas#c,body.pagezoom #touch,body.pagezoom #touch *{touch-action:pinch-zoom}
 button{touch-action:manipulation}
 #inv,#shop,#help,#bar,.tbox{touch-action:pan-y}
 #touch{position:fixed;inset:0;pointer-events:none;z-index:4}
@@ -227,6 +228,7 @@ button{touch-action:manipulation}
     <b>Bottle buttons</b><span>Water Bottle (life) · Cold One (Buzz)</span>
     <b>Tap</b><span>Walk to a spot, enemy, or person</span>
     <b>BAG / TOWN / MAP</b><span>Gear, portal to town, bigger map</span>
+    <b>Pinch</b><span>Two fingers on the play area zoom the camera</span>
   </div>
   <div class="ctrl mouseonly" style="font-size:13px;gap:5px 16px">
     <b>Left Click</b><span>Move, or attack what you click</span>
@@ -240,6 +242,7 @@ button{touch-action:manipulation}
     <b>T</b><span>Portal to town (and back)</span>
     <b>E</b><span>Talk to Gus or Brenda in town</span>
     <b>M</b><span>Bigger minimap</span>
+    <b>Wheel / − =</b><span>Zoom the camera in and out</span>
     <b>H</b><span>This help</span>
     <b>Goal</b><span>Beat all 5 bosses and reach Lv 15 to open the Championship Castle in the far north</span>
   </div>
@@ -284,11 +287,12 @@ button{touch-action:manipulation}
 const TAU=Math.PI*2, TS=48, CH=16;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const lc=document.createElement('canvas'), lctx=lc.getContext('2d');
-let W=0,H=0,DPR=1,vign=null,Z=1,VW=0,VH=0;
+let W=0,H=0,DPR=1,vign=null,Z=1,VW=0,VH=0,BZ=1,UZ=1;try{UZ=+localStorage.getItem('beerleague_zoom')||1}catch(e){}
+function applyZoom(){Z=Math.max(.45,Math.min(1.5,BZ*UZ));VW=W/Z;VH=H/Z}
 let touchMode=matchMedia('(pointer: coarse)').matches||('ontouchstart' in window&&navigator.maxTouchPoints>0);
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,touchMode?1.5:2);W=innerWidth;H=innerHeight;
-  Z=Math.max(.55,Math.min(1,Math.min(W,H)/720));VW=W/Z;VH=H/Z;
+  BZ=Math.max(.55,Math.min(1,Math.min(W,H)/720));applyZoom();
   cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';
   lc.width=Math.ceil(W/2);lc.height=Math.ceil(H/2);
   vign=document.createElement('canvas');vign.width=Math.ceil(W/2);vign.height=Math.ceil(H/2);
@@ -1541,7 +1545,8 @@ function render(){
   ctx.drawImage(vign,0,0,W,H);
   if(mode!=='title'&&P){if(P.hp<P.maxHp*.3&&P.alive){ctx.fillStyle=`rgba(180,0,0,${(.3-P.hp/P.maxHp)*.8*(.6+Math.sin(time*6)*.4)})`;ctx.fillRect(0,0,W,H)}
     if(P.flash>0){ctx.fillStyle=`rgba(255,0,0,${P.flash})`;ctx.fillRect(0,0,W,H)}
-    drawHUD();drawMinimap();drawTargetFrame()}}
+    drawHUD();drawMinimap();drawTargetFrame();
+    if(mode==='play'&&isPaused()){ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(0,0,W,H);ctx.font=`900 ${Math.round(Math.min(W,H)/14)}px Cinzel, serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=5;ctx.strokeStyle='#000';const px=$('inv').classList.contains('hidden')?W/2:Math.max(140,(W-Math.min(640,W-36)-18)/2);ctx.strokeText('PAUSED',px,H*.42);ctx.fillStyle='#f3dca8';ctx.fillText('PAUSED',px,H*.42)}}}
 function drawPlayer(){
   const o=playerLook();o.s=1;o.ang=P.ang;o.walk=P.walk;
   for(const gh of ghosts){const q=Object.assign({},o,{alpha:gh.t*1.4,ang:gh.ang,jersey:gh.gold?'#ffd24a':'#9fd6ff',jersey2:'#ffffff'});drawSkater(ctx,gh.x,gh.y,q)}
@@ -1807,7 +1812,30 @@ function setupUI(){
     else if(k==='e'){const n=M.npcs.find(n=>Math.hypot(P.x-n.x,P.y-n.y)<120);if(n)interact(n)}
     else if(k==='escape'){['inv','shop','help','bar','gear','sharp','hut'].forEach(closePanel)}
     if(P.tp>0&&['w','a','s','d'].includes(k))P.tp=0});
-  addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false})}
+  addEventListener('keyup',ev=>{keys[ev.key.toLowerCase()]=false})
+  // ---- zoom: in-game camera zoom, and guard against accidental browser zoom-in
+  const setUZ=v=>{UZ=Math.max(.6,Math.min(1.4,v));applyZoom();try{localStorage.setItem('beerleague_zoom',UZ)}catch(e){}toastOnce(`Camera zoom ${Math.round(UZ*100)}%`,'#ccc')};
+  addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){if(e.deltaY<0)e.preventDefault();return}
+    if(mode==='play'&&e.target===cv){e.preventDefault();setUZ(UZ*(e.deltaY>0?.92:1.08))}},{passive:false});
+  for(const ev of['gesturestart','gesturechange'])document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
+  addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey;
+    if(mod&&(e.key==='='||e.key==='+')){e.preventDefault();if(mode==='play')setUZ(UZ*1.1);return}
+    if(mod&&e.key==='0'){setUZ(1);return}
+    if(!mod&&mode==='play'&&document.activeElement===document.body){if(e.key==='-'||e.key==='_')setUZ(UZ*.9);else if(e.key==='='||e.key==='+')setUZ(UZ*1.1)}});
+  // ---- mobile: stop iOS page zoom, recover if it happens anyway, and pinch to zoom the game camera
+  let lastTap=0;document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTap<350&&!e.target.closest('input,textarea'))e.preventDefault();lastTap=n},{passive:false});
+  document.addEventListener('touchmove',e=>{if(e.touches.length>1&&(!window.visualViewport||visualViewport.scale<=1.01))e.preventDefault()},{passive:false});
+  const vv=window.visualViewport;let resetT=0;
+  const fixPageZoom=()=>{if(!vv)return;const zoomed=vv.scale>1.03;document.body.classList.toggle('pagezoom',zoomed);
+    if(zoomed&&performance.now()-resetT>1500){resetT=performance.now();const m=$('vpmeta');m.setAttribute('content','width=device-width,initial-scale=1.0001,maximum-scale=1.0001,user-scalable=no');setTimeout(()=>m.setAttribute('content','width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'),60);
+      toastOnce('Page zoom reset. Pinch the play area to zoom the camera instead.','#ccc')}};
+  if(vv){vv.addEventListener('resize',fixPageZoom);setInterval(fixPageZoom,1500)}
+  const pins=new Map();let pin0=0,pinUZ=1;
+  cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;pins.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pins.size===2){const[a,b]=[...pins.values()];pin0=Math.hypot(a.x-b.x,a.y-b.y);pinUZ=UZ;mouse.l=false;mouse.lStart=false;P&&(P.path=null)}});
+  cv.addEventListener('pointermove',e=>{if(!pins.has(e.pointerId))return;pins.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pins.size===2&&pin0>20){const[a,b]=[...pins.values()];UZ=Math.max(.6,Math.min(1.4,pinUZ*Math.hypot(a.x-b.x,a.y-b.y)/pin0));applyZoom();mouse.l=false}});
+  const pinEnd=e=>{if(pins.delete(e.pointerId)&&pins.size<2&&pin0){pin0=0;try{localStorage.setItem('beerleague_zoom',UZ)}catch(_){}}};cv.addEventListener('pointerup',pinEnd);cv.addEventListener('pointercancel',pinEnd);
+  const zoomCheck=()=>{if(touchMode||mode!=='play')return;const z=Math.round(outerWidth/innerWidth*100);if(z>=125)toastOnce(`Your browser looks zoomed in (~${z}%). Press Ctrl+0 (⌘+0 on Mac) to reset it.`,'#ffd24a')};
+  addEventListener('resize',()=>setTimeout(zoomCheck,300));setInterval(zoomCheck,8000);}
 
 // ====================================================================
 //  ENDING
@@ -2008,9 +2036,11 @@ function selectItem(c){const isBag=c.classList.contains('cell'),it=isBag?P.bag[+
 //  LOOP
 // ====================================================================
 let last=performance.now();
+function isPaused(){return !$('inv').classList.contains('hidden')||!$('help').classList.contains('hidden')}
 function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;time+=dt;
   if(mode==='ending'){try{endT+=dt;drawEnding(dt)}catch(err){console.error(err)}requestAnimationFrame(frame);return}
-  try{if(mode==='play')update(dt);else if(mode==='title'||mode==='dead'){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;if(p.life<=0)parts.splice(i,1);else{p.x+=p.vx*dt;p.y+=p.vy*dt}}
+  const paused=mode==='play'&&isPaused();if(paused){mouse.lStart=false;mouse.l=false;mouse.r=false;touchAtk=false}
+  try{if(mode==='play'&&!paused)update(dt);else if(mode==='title'||mode==='dead'){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;if(p.life<=0)parts.splice(i,1);else{p.x+=p.vx*dt;p.y+=p.vy*dt}}
       if(M===OW&&Math.random()<.6){const b=OW.bonfire;part(b.x+rr(-10,10),b.y-14,{vx:rr(-15,15),vy:-rr(60,140),life:rr(.6,1.2),max:1.2,size:rr(1.5,3),col:pick(['#ffcf4a','#ff9a32','#ff5a1a']),add:true,drag:.99})}}
     render()}catch(err){console.error(err)}
   requestAnimationFrame(frame)}
