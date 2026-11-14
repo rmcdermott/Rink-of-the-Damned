@@ -263,6 +263,7 @@ button{touch-action:manipulation}
     <b>T</b><span>Portal to town (and back)</span>
     <b>E</b><span>Talk to Gus or Brenda in town</span>
     <b>M</b><span>Bigger minimap</span>
+    <b>N</b><span>Music on / off</span>
     <b>Wheel / − =</b><span>Zoom the camera in and out</span>
     <b>H</b><span>This help</span>
     <b>Goal</b><span>Beat all 5 bosses and reach Lv 15 to open the Championship Castle in the far north</span>
@@ -342,10 +343,73 @@ let _uid=1;const uid=()=>Date.now().toString(36)+(_uid++);
 //  AUDIO
 // ====================================================================
 let AC=null,master=null,noiseBuf=null;const lastS={};
-function initAudio(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=0.45;master.connect(AC.destination)}catch(e){AC=null}}
+function initAudio(){
+  try{if(navigator.audioSession&&navigator.audioSession.type!=='playback')navigator.audioSession.type='playback'}catch(e){} // iOS: play even with the silent switch on
+  if(AC){if(AC.state!=='running'&&AC.resume)AC.resume().catch(()=>{});return}
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=0.45;master.connect(AC.destination);
+    const b=AC.createBuffer(1,1,22050),src=AC.createBufferSource();src.buffer=b;src.connect(AC.destination);src.start(0);if(AC.resume)AC.resume().catch(()=>{})}catch(e){AC=null}}
+for(const ev of['pointerdown','touchend','keydown','click'])document.addEventListener(ev,initAudio,{capture:true,passive:true});
 function tone(f,d,type='sine',v=.2,f2=null,delay=0){if(!AC)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(master);o.start(t);o.stop(t+d+.02)}
 function noise(d,v=.2,freq=1000,type='bandpass',delay=0){if(!AC)return;if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const a=noiseBuf.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1}
   const t=AC.currentTime+delay,s=AC.createBufferSource();s.buffer=noiseBuf;const f=AC.createBiquadFilter();f.type=type;f.frequency.value=freq;const g=AC.createGain();g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);s.connect(f);f.connect(g);g.connect(master);s.start(t,Math.random()*.4);s.stop(t+d+.02)}
+
+// ====================================================================
+//  MUSIC: an original gothic chiptune score, sequenced live
+// ====================================================================
+const MUS={on:true,arr:'none',step:0,next:0,gain:null,fading:false};
+try{MUS.on=localStorage.getItem('beerleague_music')!=='off'}catch(e){}
+const mfreq=m=>440*Math.pow(2,(m-69)/12);
+// chords per bar: [bass root, arp triad]; bar 7 splits to A major halfway
+const MCH=[[38,[62,65,69]],[34,[58,62,65]],[36,[60,64,67]],[33,[57,61,64]],[43,[55,58,62]],[38,[62,65,69]],[34,[58,62,65],33,[57,61,64]],[38,[62,65,69]]];
+// lead melody: per bar, [step, midi, length in 16ths]
+const MEL=[
+  [[0,74,3],[3,69,1],[4,74,2],[6,76,2],[8,77,4],[12,76,2],[14,74,2]],
+  [[0,77,3],[3,74,1],[4,70,2],[6,72,2],[8,74,6],[14,72,2]],
+  [[0,76,3],[3,72,1],[4,67,2],[6,72,2],[8,76,2],[10,79,2],[12,77,2],[14,76,2]],
+  [[0,73,4],[4,76,4],[8,81,6],[14,79,1],[15,77,1]],
+  [[0,79,3],[3,77,1],[4,76,2],[6,74,2],[8,70,4],[12,74,2],[14,79,2]],
+  [[0,77,3],[3,76,1],[4,74,2],[6,69,2],[8,74,4],[12,77,2],[14,81,2]],
+  [[0,82,2],[2,81,2],[4,79,2],[6,77,2],[8,76,2],[10,73,2],[12,76,2],[14,79,2]],
+  [[0,77,2],[2,76,2],[4,74,8],[12,69,2],[14,73,2]]];
+const ARR={
+  main:{bpm:140,vol:1,bass:'pump',arp:'fast',lead:'square',oct:0,tr:0,drums:'rock',wet:.25},
+  dungeon:{bpm:126,vol:.9,bass:'pump',arp:'fast',lead:'square',oct:-12,tr:-2,drums:'sparse',wet:.4},
+  boss:{bpm:170,vol:1.05,bass:'pump',arp:'fast',lead:'sawtooth',oct:0,tr:1,drums:'drive',wet:.2},
+  calm:{bpm:92,vol:.75,bass:'hold',arp:'slow',lead:'triangle',oct:-12,tr:0,drums:null,wet:.45}};
+function mnote(m,t,dur,type,vol,dest,cut){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(mfreq(m),t);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.006);g.gain.setValueAtTime(vol*.8,t+Math.max(.01,dur*.6));g.gain.exponentialRampToValueAtTime(.0005,t+dur);
+  if(cut){const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=cut;o.connect(f);f.connect(g)}else o.connect(g);g.connect(dest);o.start(t);o.stop(t+dur+.02);return o}
+function mdrum(k,t){const g=AC.createGain();g.connect(MUS.gain);
+  if(k==='kick'){const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(42,t+.12);g.gain.setValueAtTime(.42,t);g.gain.exponentialRampToValueAtTime(.001,t+.22);o.connect(g);o.start(t);o.stop(t+.25);return}
+  if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const a=noiseBuf.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1}
+  const n=AC.createBufferSource();n.buffer=noiseBuf;const f=AC.createBiquadFilter();
+  if(k==='snare'){f.type='bandpass';f.frequency.value=1900;g.gain.setValueAtTime(.2,t);g.gain.exponentialRampToValueAtTime(.001,t+.13);const o=AC.createOscillator(),og=AC.createGain();o.type='triangle';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(120,t+.08);og.gain.setValueAtTime(.12,t);og.gain.exponentialRampToValueAtTime(.001,t+.09);o.connect(og);og.connect(MUS.gain);o.start(t);o.stop(t+.1)}
+  else{f.type='highpass';f.frequency.value=7500;g.gain.setValueAtTime(.045,t);g.gain.exponentialRampToValueAtTime(.001,t+.04)}
+  n.connect(f);f.connect(g);n.start(t,Math.random()*.5);n.stop(t+.15)}
+function mstep(st,t,A,spb){const bar=(st>>4)%8,s=st%16,c=MCH[bar],split=c.length>2&&s>=8,root=(split?c[2]:c[0])+A.tr,tri=(split?c[3]:c[1]).map(n=>n+A.tr);
+  if(A.bass==='pump'&&s%2===0)mnote(root+(s%4===2?12:0),t,spb*1.7,'sawtooth',.11,MUS.gain,700);
+  if(A.bass==='hold'&&(s===0||(split&&s===8)))mnote(root+12,t,spb*(split?8:16)*.98,'sine',.16,MUS.gain);
+  if(A.arp==='fast'){const i=[0,1,2,1][s%4]+(s%8>=4?0:0);mnote(tri[i%3]+(s%8>=4?12:0),t,spb*.8,'square',.022,MUS.gain,3200)}
+  if(A.arp==='slow'&&s%2===0)mnote(tri[(s/2)%3]+12,t,spb*1.9,'triangle',.035,MUS.gain);
+  for(const[ms,m,len]of MEL[bar])if(ms===s){const d=len*spb*.95,v=A.lead==='triangle'?.09:.055;mnote(m+A.oct+A.tr,t,d,A.lead,v,MUS.gain,A.lead==='triangle'?null:4200);mnote(m+A.oct+A.tr,t,d,A.lead,v*.8,MUS.dly,A.lead==='triangle'?null:3000);
+    if(A.lead!=='triangle'){const o=mnote(m+A.oct+A.tr,t,d,A.lead,v*.45,MUS.gain,4200);o.detune.value=8}}
+  if(A.drums){if(s===0||s===8||(A.drums!=='sparse'&&(s===10))||(A.drums==='drive'&&s%4===0))mdrum('kick',t);
+    if(s===4||s===12||(A.drums==='drive'&&s===14))mdrum('snare',t);if(A.drums!=='sparse'?s%2===1:s%4===2)mdrum('hat',t)}}
+function musicTick(){if(!AC||!MUS.gain||MUS.arr==='none'||AC.state!=='running')return;const A=ARR[MUS.arr],spb=60/A.bpm/4;
+  if(MUS.next<AC.currentTime-.3)MUS.next=AC.currentTime+.05;
+  while(MUS.next<AC.currentTime+.15){mstep(MUS.step,MUS.next,A,spb);MUS.next+=spb;MUS.step=(MUS.step+1)%128}}
+function musicInit(){if(!AC||MUS.gain)return;MUS.gain=AC.createGain();MUS.gain.gain.value=0;MUS.gain.connect(master);
+  MUS.dly=AC.createDelay(1);MUS.fb=AC.createGain();MUS.fb.gain.value=.3;MUS.wet=AC.createGain();MUS.wet.gain.value=.25;MUS.dly.connect(MUS.fb);MUS.fb.connect(MUS.dly);MUS.dly.connect(MUS.wet);MUS.wet.connect(MUS.gain);
+  setInterval(musicTick,25)}
+function musicWant(){if(!MUS.on)return'none';if(mode==='title')return'calm';if(mode!=='play'||!P||!P.alive)return'none';
+  if(M&&M.boss&&!M.boss.dead&&M.boss.state==='chase'&&Math.hypot(M.boss.x-P.x,M.boss.y-P.y)<1100)return'boss';
+  if(M===OW&&inTownZone(P.x,P.y))return'calm';return M&&M.kind==='dun'?'dungeon':'main'}
+function musicUpdate(){if(!AC)return;musicInit();const want=musicWant();if(want===MUS.arr||MUS.fading)return;MUS.fading=true;const t=AC.currentTime;
+  MUS.gain.gain.cancelScheduledValues(t);MUS.gain.gain.setValueAtTime(MUS.gain.gain.value,t);MUS.gain.gain.linearRampToValueAtTime(0,t+.5);
+  setTimeout(()=>{MUS.arr=want;MUS.step=0;MUS.next=AC.currentTime+.05;if(want!=='none'){const A=ARR[want],tt=AC.currentTime;MUS.dly.delayTime.value=60/A.bpm*.75;MUS.wet.gain.value=A.wet;
+      MUS.gain.gain.cancelScheduledValues(tt);MUS.gain.gain.setValueAtTime(0,tt);MUS.gain.gain.linearRampToValueAtTime(.55*A.vol,tt+.9)}MUS.fading=false},550)}
+function toggleMusic(){MUS.on=!MUS.on;try{localStorage.setItem('beerleague_music',MUS.on?'on':'off')}catch(e){}toast(MUS.on?'Music on':'Music off','#ccc')}
+
 function sfx(k){if(!AC)return;const n=performance.now();if(lastS[k]&&n-lastS[k]<45)return;lastS[k]=n;
   switch(k){
     case'swing':noise(.13,.1,2400,'highpass');break;
@@ -1730,7 +1794,7 @@ function drawHUD(){
   if(P.aura>0){g.fillStyle='rgba(190,100,20,.85)';g.fillRect(bx,58,104,20);g.fillStyle='#fff';g.font='700 11px Inter';g.fillText(`Hot Hands ${P.aura.toFixed(1)}s`,bx+6,62);bx+=112}
   if(P.slow>0){g.fillStyle='rgba(40,90,160,.8)';g.fillRect(bx,58,70,20);g.fillStyle='#fff';g.font='700 11px Inter';g.fillText('Slowed',bx+6,62)}
   drinkChips(g,16,82);
-  g.font='600 11px Inter';g.fillStyle='rgba(200,190,170,.7)';g.textAlign='left';g.fillText('[I] Gear  [T] Town  [H] Help',16,H-22)}
+  g.font='600 11px Inter';g.fillStyle='rgba(200,190,170,.7)';g.textAlign='left';g.fillText(`[I] Gear  [T] Town  [H] Help  [N] Music ${MUS.on?'on':'off'}`,16,H-22)}
 function drawTargetFrame(){
   let e=hoverEnemy&&!hoverEnemy.d.obj?hoverEnemy:null;if(!e&&M.boss&&!M.boss.dead&&M.boss.state==='chase')e=M.boss;if(!e)return;
   const g=ctx;let w=e.boss?Math.min(520,W*.5):300,x=W/2-w/2,y=e.boss?22:18;if(touchMode&&W<720){w=W-200;x=72;y=150;if(W<480){w=W-120}}
@@ -1831,6 +1895,7 @@ function setupUI(){
     else if(k==='i'||k==='c'||k==='b'||k==='tab'){ev.preventDefault();togglePanel('inv')}
     else if(k==='h')togglePanel('help');
     else if(k==='m')miniBig=!miniBig;
+    else if(k==='n')toggleMusic();
     else if(k==='t'){if(inAnyTown())toastOnce("You're already in town",'#aaa');else if(P.alive&&!P.dash){P.tp=1.2;P.path=null;P.target=null;sfx('portal')}}
     else if(k==='e'){const n=M.npcs.find(n=>Math.hypot(P.x-n.x,P.y-n.y)<120);if(n)interact(n)}
     else if(k==='escape'){['inv','shop','help','bar','gear','sharp','hut'].forEach(closePanel)}
@@ -2026,6 +2091,7 @@ function setupTouch(){
     hold(b,()=>{if(i===1)touchHold[1]=true;else useSkill(i)},()=>{touchHold[i]=false});root.appendChild(b);tbtns.push({el:b,i,cd:b.querySelector('.cd'),key:''})}
   const bar=$('tbar');
   const prow=document.createElement('div');prow.style.cssText='display:flex;gap:6px';bar.appendChild(prow);
+  {const mb=mk('sq','♪',{});mb.style.height='56px';mb.style.width='40px';mb.style.fontSize='18px';hold(mb,toggleMusic);prow.appendChild(mb);prow._mb=mb}
   for(const pi of[6,7]){const b=mk('',`<img src="${skillIconURL(SK[pi].icon,56)}"><div class="cd"></div><div class="ct"></div>`,{});hold(b,()=>useSkill(pi));prow.appendChild(b);tbtns.push({el:b,i:pi,cd:b.querySelector('.cd'),key:'',ct:b.querySelector('.ct')});if(pi===6)potBtn=b;b.querySelector('.ct').style.color=pi===6?'#9fd6ff':'#ffcf4a'}
   for(const[lab,fn]of[['BAG',()=>togglePanel('inv')],['TOWN',()=>keyAct('t')],['MAP',()=>{miniBig=!miniBig}],['?',()=>togglePanel('help')],['TALK',()=>keyAct('e')]]){
     const b=mk('sq',lab,{});hold(b,fn);bar.appendChild(b);if(lab==='TALK'){talkBtn=b;b.style.display='none';b.style.borderColor='#ffd24a'}}}
@@ -2059,8 +2125,9 @@ function selectItem(c){const isBag=c.classList.contains('cell'),it=isBag?P.bag[+
 //  LOOP
 // ====================================================================
 let last=performance.now();
+function isPausedM(){return false}
 function isPaused(){return !$('inv').classList.contains('hidden')||!$('help').classList.contains('hidden')}
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;time+=dt;
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;time+=dt;try{musicUpdate()}catch(e){}
   if(mode==='ending'){try{endT+=dt;drawEnding(dt)}catch(err){console.error(err)}requestAnimationFrame(frame);return}
   const paused=mode==='play'&&isPaused();if(paused){mouse.lStart=false;mouse.l=false;mouse.r=false;touchAtk=false}
   try{if(mode==='play'&&!paused)update(dt);else if(mode==='title'||mode==='dead'){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;if(p.life<=0)parts.splice(i,1);else{p.x+=p.vx*dt;p.y+=p.vy*dt}}
