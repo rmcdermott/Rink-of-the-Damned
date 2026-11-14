@@ -504,12 +504,12 @@ const SKD={
   celly:{name:'Celly',cost:22,cd:12,icon:'shield',desc:'Celebrate early. A golden shield absorbs damage equal to 35% of your max life for 8 seconds.'},
   hothands:{name:'Hot Hands',cost:25,cd:14,icon:'aura',desc:'For 10 seconds, a blazing aura burns every enemy near you for 35% damage twice a second.'},
   topshelf:{name:'Top Shelf',cost:32,cd:6,icon:'bolt',desc:'Call a golden puck down from the rafters onto the target: 300% damage in an area, then it shatters into 8 smaller pucks.'},
-  clip:{name:'Clipboard Toss',cost:0,cd:0,icon:'clip',desc:'Fling a clipboard at the target for 100% weapon damage. Coaches attack from range.'},
-  chalk:{name:'Chalk Talk',cost:6,cd:0,rcd:.32,icon:'chalk',desc:'Fire 5 crackling chalk bolts that wander toward enemies for 60% damage each.'},
-  linechange:{name:'Line Change',cost:12,cd:1.5,icon:'blink',desc:'Teleport a short distance toward the target. Perfect for escaping a bad shift.'},
-  icestorm:{name:'Ice Storm',cost:26,cd:2,icon:'storm',desc:'Shards of ice rain on an area for 3 seconds, dealing 45% damage 12 times and slowing enemies.'},
-  timeout:{name:'Timeout',cost:20,cd:6,icon:'nova',desc:'Blow the whistle. Enemies around you take 120% damage and freeze in place for 2 seconds.'},
-  assistant:{name:'Assistant Coach',cost:30,cd:4,icon:'turret',desc:'Set up a puck machine that fires at nearby enemies for 12 seconds (60% damage per shot). Up to 2 at once.'},
+  clip:{name:'Clipboard Toss',cost:0,cd:0,icon:'clip',desc:'Fling a clipboard at the target for 90% weapon damage. Coaches attack from range.'},
+  chalk:{name:'Chalk Talk',cost:7,cd:0,rcd:.32,icon:'chalk',desc:'Fire 5 crackling chalk bolts that wander toward enemies for 60% damage each.'},
+  linechange:{name:'Line Change',cost:14,cd:1.5,icon:'blink',desc:'Teleport a short distance toward the target. Perfect for escaping a bad shift.'},
+  icestorm:{name:'Ice Storm',cost:29,cd:2,icon:'storm',desc:'Shards of ice rain on an area for 3 seconds, dealing 45% damage 12 times and slowing enemies.'},
+  timeout:{name:'Timeout',cost:22,cd:6,icon:'nova',desc:'Blow the whistle. Enemies around you take 120% damage and freeze in place for 2 seconds.'},
+  assistant:{name:'Assistant Coach',cost:33,cd:4,icon:'turret',desc:'Set up a puck machine that fires at nearby enemies for 12 seconds (60% damage per shot). Up to 2 at once.'},
   water:{name:'Water Bottle',cost:0,cd:.6,icon:'water',desc:'Hydrate. Restores 50% of your life over 2 seconds.'},
   cold:{name:'Cold One',cost:0,cd:.6,icon:'beer',desc:'Crack a cold one. Restores 60% of your Buzz over 1.5 seconds.'},
 };
@@ -518,7 +518,7 @@ const CLASSES={
     skills:['swing','slap','check','spin','gloves','resurf','water','cold'],blurb:'A wall on skates. The most life and armor. Every hit builds Buzz, so the more you brawl, the more you can do.',bars:{Life:3,Armor:3,Damage:2,Range:1}},
   offense:{name:'Offense',like:'Plays like a Paladin',role:'Golden-touch sniper',hero:'Ricky "Sauce" Thibodeau',num:'91',jv:1,hv:3,hp:140,hpl:17,buzz:70,buzzl:2,regen:3.5,onHit:2,atk:12,crit:3,armorMul:1,spell:1.1,weapon:['Composite Stick','stick'],crest:'C',
     skills:['dangle','spiral','breakaway','celly','hothands','topshelf','water','cold'],blurb:'Holy hands. Faster swings and more crits, golden pucks, a damage-soaking celly and a burning aura.',bars:{Life:2,Armor:2,Damage:3,Range:2}},
-  coach:{name:'Coach',like:'Plays like a Sorcerer',role:'Bench-boss spellcaster',hero:'Coach Hank Dumont',num:'HC',jv:2,hv:0,hp:115,hpl:14,buzz:95,buzzl:3.5,regen:7,onHit:0,atk:0,crit:0,armorMul:1,spell:1.35,weapon:['Dented Clipboard','clipboard'],coach:true,
+  coach:{name:'Coach',like:'Plays like a Sorcerer',role:'Bench-boss spellcaster',hero:'Coach Hank Dumont',num:'HC',jv:2,hv:0,hp:104,hpl:12.6,buzz:95,buzzl:3.5,regen:7,onHit:0,atk:0,crit:0,armorMul:1,spell:1.215,weapon:['Dented Clipboard','clipboard'],coach:true,
     skills:['clip','chalk','linechange','icestorm','timeout','assistant','water','cold'],blurb:'Fragile but brilliant. Attacks from range, teleports, freezes the ice and sets up puck machines. A huge Buzz pool that refills fast.',bars:{Life:1,Armor:1,Damage:3,Range:3}},
 };
 const SK_LVL=[1,1,2,4,6,8,1,1],SK_KEY=['LMB','RMB','1','2','3','4','Q','R'];
@@ -980,7 +980,7 @@ function updPlayer(dt){
   if(P.hot>0){P.hot-=dt;P.hp=Math.min(P.maxHp,P.hp+P.maxHp*.25*dt)}
   if(P.hotB>0){P.hotB-=dt;P.buzz=Math.min(P.maxBuzz,P.buzz+P.maxBuzz*.4*dt)}
   if(P.buff>0&&Math.random()<.4)part(P.x+rr(-14,14),P.y-rr(10,50),{vy:-60,life:.5,max:.5,col:pick(['#ff3b2a','#ff9a32']),add:true,size:2.5});
-  if(P.swing){P.swing.t+=dt;if(!P.swing.hit&&P.swing.t>=P.swing.dur*.42){P.swing.hit=true;if(P.pc==='coach'){const t=P.swing.tgt;const a=t&&!t.dead?Math.atan2(t.y-P.y,t.x-P.x):P.swing.a;const sty=isCoachW(P.st.cls)?P.st.cls:'clipboard',spr=P.st.sp.has('playbook')?[-.2,0,.2]:[0];for(const o of spr){const aa=a+o,r=rollDmg(1);projs.push({x:P.x+Math.cos(aa)*18,y:P.y+Math.sin(aa)*18,vx:Math.cos(aa)*640,vy:Math.sin(aa)*640,r:9,dmg:r.d,crit:r.crit,own:'p',life:.8,kind:'clip',style:sty,pierce:sty==='clipboard',hit:new Set(),onHit:true})}sfx('swing')}else doMelee(P.swing.a)}if(P.swing.t>=P.swing.dur)P.swing=null}
+  if(P.swing){P.swing.t+=dt;if(!P.swing.hit&&P.swing.t>=P.swing.dur*.42){P.swing.hit=true;if(P.pc==='coach'){const t=P.swing.tgt;const a=t&&!t.dead?Math.atan2(t.y-P.y,t.x-P.x):P.swing.a;const sty=isCoachW(P.st.cls)?P.st.cls:'clipboard',spr=P.st.sp.has('playbook')?[-.2,0,.2]:[0];for(const o of spr){const aa=a+o,r=rollDmg(.9);projs.push({x:P.x+Math.cos(aa)*18,y:P.y+Math.sin(aa)*18,vx:Math.cos(aa)*640,vy:Math.sin(aa)*640,r:9,dmg:r.d,crit:r.crit,own:'p',life:.8,kind:'clip',style:sty,pierce:sty==='clipboard',hit:new Set(),onHit:true})}sfx('swing')}else doMelee(P.swing.a)}if(P.swing.t>=P.swing.dur)P.swing=null}
   if(P.dash){const d=P.dash;d.t-=dt;const sp=980;const m=moveEnt(P,Math.cos(d.a)*sp*dt,Math.sin(d.a)*sp*dt);P.walk+=m*.05;
     if(Math.random()<.7)ghosts.push({x:P.x,y:P.y,ang:d.a,t:.25,gold:d.gold});
     burst(P.x,P.y,2,['#e8f6ff','#ffffff'],80,{life:.4,add:true});
